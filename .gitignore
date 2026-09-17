@@ -10,7 +10,11 @@ htmlcov/
 # Backend data/artifacts
 backend/*.db
 backend/data/
+data/raw/
+data/processed/
 backend/app/ml/checkpoints/
+*.pt
+*.pth
 
 # Node
 node_modules/

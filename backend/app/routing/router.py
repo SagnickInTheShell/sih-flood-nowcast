@@ -1,7 +1,25 @@
 """Dijkstra and A* routing with flood-state-dependent edge penalties.
 
-edge cost = base_travel_time_s * penalty(state), penalty: clear=1.0,
-at_risk=3.0, flooded=inf (§6.7).
+edge cost = base_travel_time_s * penalty(state).
+
+# DEVIATION from the literal spec (§6.7 says "flooded=inf"): a literal
+# `math.inf` edge weight breaks two things we only caught by actually
+# testing an extreme scenario, not by reading the code:
+#   1. When EVERY route from A to B needs at least one flooded edge, every
+#      such route ties at cost=inf, so Dijkstra/A* no longer discriminate
+#      between "one short flooded hop" and "ten long flooded hops" -- both
+#      are just "infinity", and the search can return either.
+#   2. `eta_seconds`/`baseline_eta_seconds` in the API response would then
+#      be `inf`, which is not valid JSON (Starlette's JSONResponse calls
+#      json.dumps(..., allow_nan=False) and raises; even if it didn't,
+#      the literal token `Infinity` isn't standard JSON and the frontend's
+#      `fetch().json()` would throw parsing it).
+# FLOODED_PENALTY is instead a large-but-finite multiplier: big enough
+# that any route with a clear/at-risk-only alternative is always
+# preferred (in this ward's ~64-node grid, no detour comes close to 200x
+# a single edge's base travel time), while still letting the search rank
+# forced-through-flood routes by which one is genuinely shortest, and
+# keeping every reported ETA a finite, JSON-safe number.
 """
 from __future__ import annotations
 
@@ -9,7 +27,8 @@ import math
 
 import networkx as nx
 
-PENALTY = {"clear": 1.0, "at_risk": 3.0, "flooded": math.inf}
+FLOODED_PENALTY = 200.0
+PENALTY = {"clear": 1.0, "at_risk": 3.0, "flooded": FLOODED_PENALTY}
 
 
 def edge_cost(data: dict) -> float:

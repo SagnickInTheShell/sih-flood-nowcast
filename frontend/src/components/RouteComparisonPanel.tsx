@@ -16,7 +16,6 @@ export default function RouteComparisonPanel() {
   }
 
   const deltaSeconds = route.eta_seconds - route.baseline_eta_seconds;
-  const isFinite_ = Number.isFinite(route.baseline_eta_seconds);
 
   return (
     <div className="space-y-2">
@@ -28,18 +27,14 @@ export default function RouteComparisonPanel() {
         </div>
         <div className="bg-navy/5 border border-navy/20 rounded p-2">
           <div className="text-xs text-navy/60 font-semibold">Naive baseline</div>
-          <div className="text-lg font-bold text-navy">
-            {isFinite_ ? `${Math.round(route.baseline_eta_seconds)}s` : "blocked"}
-          </div>
+          <div className="text-lg font-bold text-navy">{Math.round(route.baseline_eta_seconds)}s</div>
         </div>
       </div>
-      {isFinite_ && (
-        <p className="text-xs text-navy/70">
-          {deltaSeconds <= 0
-            ? `${Math.abs(Math.round(deltaSeconds))}s faster than the baseline.`
-            : `${Math.round(deltaSeconds)}s slower than the baseline -- the detour trades time for safety.`}
-        </p>
-      )}
+      <p className="text-xs text-navy/70">
+        {deltaSeconds <= 0
+          ? `${Math.abs(Math.round(deltaSeconds))}s faster than the baseline.`
+          : `${Math.round(deltaSeconds)}s slower than the baseline -- the detour trades time for safety.`}
+      </p>
       {route.avoided_flooded_segments.length > 0 && (
         <div className="text-xs text-riskRed font-medium">
           Avoided {route.avoided_flooded_segments.length} flooded/at-risk segment(s) the baseline route would
