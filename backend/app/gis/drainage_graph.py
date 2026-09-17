@@ -48,6 +48,51 @@ def _ensure_major_junctions_tagged(road_graph: nx.Graph) -> None:
                 first["has_drain"] = True
 
 
+def _fill_spurious_sinks(g: nx.DiGraph, legitimate_sinks: set[str]) -> None:
+    """Standard depression-filling, applied to the drainage graph directly
+    rather than the raster (see dem.py's load_and_process_raster for the
+    pysheds equivalent on real rasters -- the in-memory synthetic/real grid
+    path here needs its own version).
+
+    Directing every edge strictly hi->lo elevation creates a local sink
+    wherever a node happens to be lower than ALL of its few neighbours
+    (most often grid corners with only 2-3 connections), even when that
+    node's absolute elevation is nowhere near the ward's true low point.
+    Such a node accumulates 100% of its inflow forever with no outlet,
+    which is physically wrong (a real depression fills until it overflows
+    its lowest rim) and, in this ward, was drowning out the actual
+    drainage-channel vulnerability the critical infrastructure is sited
+    against.
+
+    `legitimate_sinks` (the 4 major junctions along the depression, not
+    just the single globally-lowest node) are left alone: a real drainage
+    channel has multiple points along its length where local sub-
+    catchments empty into it, not one single terminus, so treating only
+    the global minimum as a "real" sink was itself an oversimplification
+    that collapsed the depression's 4 designed low points down to
+    effectively one. Every OTHER zero-out-degree node gets a single
+    overflow edge to its lowest neighbour, reusing that neighbour's edge
+    capacity -- emulating "fills, then spills over its lowest rim" rather
+    than leaving it an unphysical infinite pit.
+    """
+    for node in list(g.nodes):
+        if node in legitimate_sinks or g.out_degree(node) > 0:
+            continue
+        neighbors = list(g.predecessors(node))
+        if not neighbors:
+            continue
+        overflow_target = min(neighbors, key=lambda nb: g.nodes[nb]["elevation_m"])
+        inbound = g.get_edge_data(overflow_target, node)
+        g.add_edge(
+            node, overflow_target,
+            length_m=inbound["length_m"],
+            slope=max(abs(g.nodes[node]["elevation_m"] - g.nodes[overflow_target]["elevation_m"]) / inbound["length_m"], 1e-3),
+            estimated_capacity_m3_s=inbound["estimated_capacity_m3_s"],
+            edge_id=f"overflow_{node}_{overflow_target}",
+            is_arterial=inbound.get("is_arterial", False),
+        )
+
+
 def _ensure_single_component(road_graph: nx.Graph, drain_edges: set[frozenset]) -> set[frozenset]:
     """Merge disconnected drainage components by promoting the shortest
     connecting path (over the full, always-connected road graph) between
@@ -113,11 +158,13 @@ def build_drainage_graph(provider: WardDataProvider) -> nx.DiGraph:
         eu, ev = g.nodes[u]["elevation_m"], g.nodes[v]["elevation_m"]
         hi, lo = (u, v) if eu >= ev else (v, u)
         slope = max(abs(eu - ev) / length_m, 1e-3)
-        diameter_mm = (
-            settings.DRAIN_DIAMETER_ARTERIAL_MM
-            if edge_data.get("is_arterial")
-            else settings.DRAIN_DIAMETER_RESIDENTIAL_MM
-        )
+        is_trunk = g.nodes[u].get("is_major_junction") and g.nodes[v].get("is_major_junction")
+        if is_trunk:
+            diameter_mm = settings.DRAIN_DIAMETER_TRUNK_MM
+        elif edge_data.get("is_arterial"):
+            diameter_mm = settings.DRAIN_DIAMETER_ARTERIAL_MM
+        else:
+            diameter_mm = settings.DRAIN_DIAMETER_RESIDENTIAL_MM
         capacity = manning_capacity_m3_s(diameter_mm, slope, settings.MANNINGS_N_CONCRETE)
         g.add_edge(
             hi, lo,
@@ -128,9 +175,12 @@ def build_drainage_graph(provider: WardDataProvider) -> nx.DiGraph:
             is_arterial=edge_data.get("is_arterial", False),
         )
 
-    major_junctions = [n for n, d in g.nodes(data=True) if d.get("is_major_junction")]
-    candidates = major_junctions or list(g.nodes)
-    outlet = min(candidates, key=lambda n: g.nodes[n]["elevation_m"])
+    # outlet_node (informational) is the single globally lowest point;
+    # legitimate_sinks (used for sink-filling) is broader -- see
+    # _fill_spurious_sinks for why the 4 major junctions all qualify.
+    outlet = min(g.nodes, key=lambda n: g.nodes[n]["elevation_m"])
     g.graph["outlet_node"] = outlet
+    legitimate_sinks = {n for n, d in g.nodes(data=True) if d.get("is_major_junction")} or {outlet}
+    _fill_spurious_sinks(g, legitimate_sinks)
 
     return g

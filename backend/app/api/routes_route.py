@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from fastapi import APIRouter, HTTPException
 
 from app.api.schemas import CriticalAccessRiskSchema, RouteRequest, RouteResponse
@@ -38,21 +40,34 @@ def route(req: RouteRequest) -> RouteResponse:
     baseline_flooded_segments = path_flooded_segments(flood_graph, baseline_path)
     avoided = [e for e in baseline_flooded_segments if e not in route_edges]
 
+    # BUGFIX: this used to flag ANY critical-infra risk within 0.002 deg of
+    # the destination, in whatever order the risks list happened to be in.
+    # That silently reported the wrong facility once the hospital and fire
+    # station were deliberately sited close together near the same
+    # chokepoint (see docs/DATA_SOURCES.md) -- both fell within each
+    # other's matching radius. Find the NEAREST infra to the destination
+    # first, unambiguously identifying which facility is being routed to,
+    # then check only that one for a risk.
     critical_risk = None
-    for risk in scenario.critical_access_risks:
-        infra = next(
-            (i for i in cache.provider.get_critical_infrastructure() if i.infra_id == risk.infra_id),
-            None,
+    all_infra = cache.provider.get_critical_infrastructure()
+    if all_infra:
+        nearest_infra = min(
+            all_infra,
+            key=lambda i: math.hypot(i.lat - req.end.lat, i.lng - req.end.lng),
         )
-        if infra and abs(infra.lat - req.end.lat) < 0.002 and abs(infra.lng - req.end.lng) < 0.002:
-            critical_risk = CriticalAccessRiskSchema(
-                infra_id=risk.infra_id,
-                infra_type=risk.infra_type,
-                infra_name=risk.infra_name,
-                access_redundancy_score=risk.access_redundancy_score,
-                message=risk.message,
+        if math.hypot(nearest_infra.lat - req.end.lat, nearest_infra.lng - req.end.lng) < 0.002:
+            risk = next(
+                (r for r in scenario.critical_access_risks if r.infra_id == nearest_infra.infra_id),
+                None,
             )
-            break
+            if risk:
+                critical_risk = CriticalAccessRiskSchema(
+                    infra_id=risk.infra_id,
+                    infra_type=risk.infra_type,
+                    infra_name=risk.infra_name,
+                    access_redundancy_score=risk.access_redundancy_score,
+                    message=risk.message,
+                )
 
     return RouteResponse(
         route_geometry=path_to_geojson_linestring(flood_graph, route_path),

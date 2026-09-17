@@ -33,6 +33,15 @@ class Settings(BaseSettings):
     # planned layout, configurable per §6.3 of the spec.
     DRAIN_DIAMETER_RESIDENTIAL_MM: int = 450
     DRAIN_DIAMETER_ARTERIAL_MM: int = 900
+    # ASSUMPTION: the trunk interceptor drain running along the depression
+    # itself (between consecutive major junctions) is larger-bore than a
+    # generic arterial road drain -- realistic for a ward's primary
+    # stormwater trunk line -- and, verified empirically, is what actually
+    # determines how much water reaches (and ponds at) the ward's true
+    # outlet; deepening the channel or upzoning nearby land use alone did
+    # not move the outlet's predicted depth much once the trunk itself was
+    # the delivery bottleneck.
+    DRAIN_DIAMETER_TRUNK_MM: int = 1400
     MANNINGS_N_CONCRETE: float = 0.013
 
     # Hydrology (SCS-CN)

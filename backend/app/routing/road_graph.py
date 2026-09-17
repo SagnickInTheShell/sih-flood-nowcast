@@ -36,13 +36,31 @@ def _nearest_drainage_node(lat, lng, drainage_graph):
 def apply_flood_state(road_graph: nx.Graph, drainage_graph: nx.DiGraph, node_depth: dict[str, float]) -> nx.Graph:
     node_cache: dict[tuple[float, float], str] = {}
     for u, v, data in road_graph.edges(data=True):
-        mid_lat = (road_graph.nodes[u]["lat"] + road_graph.nodes[v]["lat"]) / 2
-        mid_lng = (road_graph.nodes[u]["lng"] + road_graph.nodes[v]["lng"]) / 2
-        key = (round(mid_lat, 6), round(mid_lng, 6))
-        if key not in node_cache:
-            node_cache[key] = _nearest_drainage_node(mid_lat, mid_lng, drainage_graph)
-        nearest = node_cache[key]
-        depth = node_depth.get(nearest, 0.0)
+        # BUGFIX: this used to always look up the drainage node nearest to
+        # the edge's MIDPOINT -- but when an edge's own endpoints are
+        # themselves drainage nodes (the common case for any drain-tagged
+        # road edge), the midpoint is often near-exactly equidistant from
+        # both, and ties resolve arbitrarily by iteration order. That could
+        # pick a dry endpoint over a badly-flooded one just a few metres
+        # away (found via the hospital access spur, whose edge to a
+        # severely-ponded major junction was being classified "clear").
+        # A road edge should flood if EITHER end floods, so when u or v is
+        # itself a drainage node, use the worse (max) of their depths
+        # directly instead of an external nearest-point lookup.
+        u_in_drainage = u in node_depth
+        v_in_drainage = v in node_depth
+        if u_in_drainage or v_in_drainage:
+            depth = max(node_depth.get(u, 0.0), node_depth.get(v, 0.0))
+            nearest = u if node_depth.get(u, 0.0) >= node_depth.get(v, 0.0) else v
+        else:
+            mid_lat = (road_graph.nodes[u]["lat"] + road_graph.nodes[v]["lat"]) / 2
+            mid_lng = (road_graph.nodes[u]["lng"] + road_graph.nodes[v]["lng"]) / 2
+            key = (round(mid_lat, 6), round(mid_lng, 6))
+            if key not in node_cache:
+                node_cache[key] = _nearest_drainage_node(mid_lat, mid_lng, drainage_graph)
+            nearest = node_cache[key]
+            depth = node_depth.get(nearest, 0.0)
+
         if depth >= settings.DEPTH_THRESHOLD_FLOODED_M:
             state = "flooded"
         elif depth >= settings.DEPTH_THRESHOLD_AT_RISK_M:

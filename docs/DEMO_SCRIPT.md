@@ -38,9 +38,11 @@
   the green active route detouring around it.
 
 ## Beat 5 -- Closing: Critical Access Risk (30s)
-- Manually trigger (or already staged) a scenario where the hospital's
-  access redundancy has dropped to zero -- e.g. heavy storm + a route
-  destination near the hospital.
+- Still on the "Heavy cloudburst" preset (100mm/hr), click near the hospital
+  or fire station to route there -- both are deliberately sited near the
+  ward's one severe drainage chokepoint (see
+  `docs/DATA_SOURCES.md`'s "Deliberate critical-infrastructure siting"),
+  so at this preset their `access_redundancy_score` reliably reads `0`.
 - Let the **red CriticalAccessBanner** appear across the top: **"This is our
   differentiator: it's not just "route around flooding" -- we specifically
   flag when a hospital, fire station, or shelter has NO flood-free path left
