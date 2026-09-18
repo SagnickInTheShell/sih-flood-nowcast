@@ -10,6 +10,7 @@ htmlcov/
 # Backend data/artifacts
 backend/*.db
 backend/data/
+backend/cache/
 data/raw/
 data/processed/
 backend/app/ml/checkpoints/

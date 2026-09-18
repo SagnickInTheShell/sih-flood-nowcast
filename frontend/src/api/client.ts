@@ -37,6 +37,10 @@ export interface SimulateResponse {
   road_segments: RoadSegment[];
   model_caveat: string;
   is_synthetic_ward: boolean;
+  // infra_ids with zero access redundancy under this scenario -- lets the
+  // map's demo-click affordance target a facility that's actually
+  // vulnerable right now, not just whichever infra happens to be first.
+  at_risk_infra_ids: string[];
 }
 
 export interface CriticalAccessRisk {

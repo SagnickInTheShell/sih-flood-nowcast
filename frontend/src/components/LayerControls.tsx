@@ -12,14 +12,21 @@ export default function LayerControls() {
   const layerVisibility = useFloodStore((s) => s.layerVisibility);
   const toggleLayer = useFloodStore((s) => s.toggleLayer);
   return (
-    <div className="space-y-2">
-      <h2 className="font-semibold text-navy">Layers</h2>
-      {LAYERS.map((l) => (
-        <label key={l.key} className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={layerVisibility[l.key]} onChange={() => toggleLayer(l.key)} />
-          {l.label}
-        </label>
-      ))}
+    <div className="space-y-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-navy/60">Layers</h2>
+      <div className="space-y-2">
+        {LAYERS.map((l) => (
+          <label key={l.key} className="flex items-center gap-2.5 text-sm text-textDark cursor-pointer">
+            <input
+              type="checkbox"
+              checked={layerVisibility[l.key]}
+              onChange={() => toggleLayer(l.key)}
+              className="w-4 h-4 accent-teal cursor-pointer"
+            />
+            {l.label}
+          </label>
+        ))}
+      </div>
     </div>
   );
 }

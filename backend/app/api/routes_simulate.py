@@ -45,4 +45,5 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
         road_segments=road_segments,
         model_caveat=MODEL_CAVEAT,
         is_synthetic_ward=scenario.is_synthetic_ward,
+        at_risk_infra_ids=[r.infra_id for r in scenario.critical_access_risks],
     )

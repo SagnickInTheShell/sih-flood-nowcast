@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 
 from app.core.config import settings
 from app.gis.drainage_graph import build_drainage_graph
@@ -12,6 +13,7 @@ from app.gis.real_ward import RealWardProvider
 from app.gis.synthetic_ward import SyntheticWardProvider
 from app.ml.features import assign_catchments, build_static_features
 from app.ml.infer import load_model, predict_scenario
+from app.ml.train import train as train_gnn
 from app.routing.criticality import check_critical_access
 from app.routing.road_graph import apply_flood_state, build_road_graph
 
@@ -53,7 +55,25 @@ class ScenarioCache:
         self.drainage_graph = build_drainage_graph(self.provider)
         catchments = assign_catchments(self.provider, self.drainage_graph)
         self.static = build_static_features(self.drainage_graph, catchments)
-        self.model, self.model_loaded_from_checkpoint = load_model()
+
+        # BUGFIX: MODEL_CHECKPOINT_PATH was a single fixed path shared
+        # across PILOT_MODE values -- switching to PILOT_MODE=real would
+        # silently load a checkpoint trained on the SYNTHETIC ward's graph
+        # and value distributions onto a completely different real-ward
+        # graph. Each mode now gets its own checkpoint, trained fresh
+        # (reusing the provider/graph/catchments/static already built
+        # above, so this doesn't refetch OSM/DEM data) the first time that
+        # mode boots, then cached on disk exactly like the synthetic path
+        # already was via scripts/seed_synthetic_ward.py.
+        base_path = Path(settings.MODEL_CHECKPOINT_PATH)
+        mode_checkpoint_dir = base_path.parent / settings.PILOT_MODE
+        mode_checkpoint_path = mode_checkpoint_dir / base_path.name
+        if not mode_checkpoint_path.exists():
+            train_gnn(
+                provider=self.provider, drainage_graph=self.drainage_graph,
+                catchments=catchments, static=self.static, out_dir=mode_checkpoint_dir,
+            )
+        self.model, self.model_loaded_from_checkpoint = load_model(str(mode_checkpoint_path))
 
         for key, cfg in PRESET_SCENARIOS.items():
             scenario = self._compute_scenario(

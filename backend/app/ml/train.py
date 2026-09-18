@@ -48,12 +48,42 @@ def to_pyg(static, example) -> Data:
     return Data(x=x, edge_index=edge_index, edge_weight=edge_weight, y=y)
 
 
-def train(epochs: int = 200, patience: int = 15, lr: float = 1e-3, seed: int = 42, out_dir=None):
+# BUGFIX: plain MSE, averaged uniformly over every node in every scenario,
+# let the model collapse to a trivial "predict ~0 everywhere" solution --
+# found on real (Bellandur) topology, where only a small fraction of
+# node/scenario pairs ever have meaningful depth (most of the ward simply
+# doesn't flood at most rainfall levels) and unweighted MSE is already
+# nearly minimized by ignoring the few flood-relevant nodes entirely. A
+# depth-weighted MSE keeps zero-depth nodes in the loss (correctly
+# predicting "clear" still matters) while not letting them drown out the
+# gradient signal from the nodes the whole system exists to predict.
+def _weighted_mse(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    weight = 1.0 + 10.0 * target
+    return (weight * (pred - target) ** 2).mean()
+
+
+def train(
+    epochs: int = 200, patience: int = 15, lr: float = 1e-3, seed: int = 42, out_dir=None,
+    provider=None, drainage_graph=None, catchments=None, static=None,
+):
+    """Trains against whichever ward is passed in (defaults to the
+    synthetic ward, for the standalone `python -m app.ml.train` / seed
+    script use case). PILOT_MODE=real must pass its own already-built
+    provider/graph/catchments/static (see scenarios/cache.py) -- training
+    always against SyntheticWardProvider() regardless of caller was a real
+    bug: it silently produced a checkpoint fit to the synthetic ward's
+    graph and value distributions, then that same checkpoint got loaded
+    for real-ward inference too, via the single shared MODEL_CHECKPOINT_PATH.
+    """
     torch.manual_seed(seed)
-    provider = SyntheticWardProvider()
-    drainage_graph = build_drainage_graph(provider)
-    catchments = assign_catchments(provider, drainage_graph)
-    static = build_static_features(drainage_graph, catchments)
+    if provider is None:
+        provider = SyntheticWardProvider()
+    if drainage_graph is None:
+        drainage_graph = build_drainage_graph(provider)
+    if catchments is None:
+        catchments = assign_catchments(provider, drainage_graph)
+    if static is None:
+        static = build_static_features(drainage_graph, catchments)
 
     examples = generate_scenarios(drainage_graph, catchments, static)
     rng = np.random.RandomState(seed)
@@ -76,7 +106,7 @@ def train(epochs: int = 200, patience: int = 15, lr: float = 1e-3, seed: int = 4
         for data in train_data:
             optimizer.zero_grad()
             pred = model(data.x, data.edge_index, data.edge_weight)
-            loss = F.mse_loss(pred, data.y)
+            loss = _weighted_mse(pred, data.y)
             loss.backward()
             optimizer.step()
 
@@ -85,7 +115,7 @@ def train(epochs: int = 200, patience: int = 15, lr: float = 1e-3, seed: int = 4
         with torch.no_grad():
             for data in val_data:
                 pred = model(data.x, data.edge_index, data.edge_weight)
-                val_loss += F.mse_loss(pred, data.y).item()
+                val_loss += _weighted_mse(pred, data.y).item()
         val_loss /= max(len(val_data), 1)
 
         if val_loss < best_val_loss - 1e-6:

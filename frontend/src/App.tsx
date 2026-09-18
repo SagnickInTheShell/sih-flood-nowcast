@@ -26,12 +26,12 @@ function Dashboard() {
       <CriticalAccessBanner />
       {error && <div className="bg-riskRed text-white text-sm px-4 py-2">{error}</div>}
       <div className="flex flex-1 overflow-hidden">
-        <aside className="w-80 flex-shrink-0 overflow-y-auto border-r border-navy/10 bg-white p-4 space-y-4">
-          <ScenarioSlider />
-          <LayerControls />
-          <RouteComparisonPanel />
-          <UncertaintyPanel />
-          <ExplainabilityPanel />
+        <aside className="w-96 flex-shrink-0 overflow-y-auto border-r border-navy/10 bg-white divide-y divide-navy/10">
+          <div className="p-5"><ScenarioSlider /></div>
+          <div className="p-5"><LayerControls /></div>
+          <div className="p-5"><RouteComparisonPanel /></div>
+          <div className="p-5"><UncertaintyPanel /></div>
+          <div className="p-5"><ExplainabilityPanel /></div>
         </aside>
         <main className="flex-1 relative">
           <MapView />

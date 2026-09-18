@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
-"""Instructions + helper for fetching a real SRTM DEM tile for PILOT_MODE=real.
+"""Instructions + helper for fetching a HIGHER-RESOLUTION SRTM DEM tile
+for PILOT_MODE=real, as an alternative to the automated fetch.
+
+PILOT_MODE=real no longer requires this script: RealWardProvider fetches
+real elevation data automatically on first boot from AWS's public,
+keyless terrarium tiles (see backend/app/gis/terrain_tiles.py). This
+script remains for the case where you specifically want a native-
+resolution SRTM tile instead (SRTM 1-arcsecond is ~30m; terrarium tiles
+at zoom 14 are resampled to ~9-10m near the equator, which is actually
+finer for this ward's purposes -- USGS SRTM is offered here only for
+provenance/comparison, not because it's required).
 
 SRTM tiles require a free USGS EarthExplorer account -- this script does
 NOT attempt to scrape or bypass that login, per the project's data-honesty
 principles. It prints exact manual steps and where to save the result so
-app/gis/real_ward.py can find it.
+app/gis/real_ward.py can find it (drop the file at the same path the
+automated fetch would have used, e.g. backend/data/real_ward_dem.tif,
+before first boot, and it will be used instead).
 
 Usage:
     python scripts/download_srtm.py --bbox min_lon,min_lat,max_lon,max_lat

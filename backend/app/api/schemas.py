@@ -33,6 +33,13 @@ class SimulateResponse(BaseModel):
     road_segments: list[RoadSegment]
     model_caveat: str
     is_synthetic_ward: bool
+    # ADDITION beyond the original §7 contract (additive/backward-compatible
+    # only): infra_ids with zero access redundancy under THIS scenario, so
+    # the frontend's map-click demo affordance can target a facility that is
+    # actually vulnerable right now, instead of always the first infra in
+    # the list -- which in real mode (many facilities, no deliberate siting)
+    # is not guaranteed to be one of the at-risk ones.
+    at_risk_infra_ids: list[str] = []
 
 
 class LatLng(BaseModel):

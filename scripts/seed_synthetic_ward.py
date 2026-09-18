@@ -34,7 +34,8 @@ def main() -> None:
     print()
     print("Training GNN surrogate against the physics baseline...")
 
-    _, metrics = train()
+    checkpoint_dir = Path(__file__).resolve().parent.parent / "backend" / "app" / "ml" / "checkpoints" / "synthetic"
+    _, metrics = train(out_dir=checkpoint_dir)
     print("Training complete:")
     for k, v in metrics.items():
         print(f"  {k}: {v}")

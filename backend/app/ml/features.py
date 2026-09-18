@@ -67,10 +67,32 @@ def assign_catchments(provider: WardDataProvider, drainage_graph: nx.DiGraph) ->
             avg_cn = float(cn_flat[mask].mean())
             facc = float(facc_flat[mask].max())
             slope = float(slope_flat[mask].mean())
+        # ASSUMPTION: on the synthetic ward's regular 8x8 road grid, nearest-
+        # node Voronoi catchments are all a similar, sane size. Real OSM
+        # topology has much less regular node spacing -- a cluster of
+        # closely-packed nodes describing one complex junction can each get
+        # a catchment of just a handful of raster cells (a few hundred m2,
+        # smaller than a single building footprint). Since ponding depth is
+        # volume/area, that produces physically meaningless multi-metre
+        # "flood depths" at those specific nodes -- a real limitation of
+        # this simplified nearest-node catchment split on irregular real
+        # topology, not a hidden or smoothed-over data problem (see
+        # docs/DATA_SOURCES.md). A floor of a few raster cells wasn't
+        # enough -- verified against the physics baseline directly, a real
+        # junction converging 3 substantial upstream drainage lines onto a
+        # ~350m2 catchment still produced tens of metres of "depth", which
+        # is not physically credible for any urban flood. 10,000 m2 (1
+        # hectare) is a coarse floor representing the minimum plausible
+        # immediate contributing area for any real road intersection --
+        # the nearest-node Voronoi split simply isn't precise enough on
+        # irregular real topology to trust at finer granularity than that.
+        min_area_m2 = 10_000.0
+        area_m2 = max(n_cells * resolution ** 2, min_area_m2)
+
         catchments[node] = Catchment(
             node=node,
             n_cells=n_cells,
-            area_m2=n_cells * resolution ** 2,
+            area_m2=area_m2,
             avg_cn=avg_cn,
             flow_accumulation=facc,
             slope_pct=slope,

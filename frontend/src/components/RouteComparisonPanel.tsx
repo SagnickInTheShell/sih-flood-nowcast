@@ -6,8 +6,8 @@ export default function RouteComparisonPanel() {
   if (!route) {
     return (
       <div className="space-y-2">
-        <h2 className="font-semibold text-navy">Route comparison</h2>
-        <p className="text-xs text-navy/60">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-navy/60">Route comparison</h2>
+        <p className="text-xs text-navy/50 leading-relaxed">
           Click anywhere on the map to compute an emergency route to the ward&apos;s hospital,
           comparing the flood-aware route against the naive baseline route.
         </p>
@@ -18,25 +18,25 @@ export default function RouteComparisonPanel() {
   const deltaSeconds = route.eta_seconds - route.baseline_eta_seconds;
 
   return (
-    <div className="space-y-2">
-      <h2 className="font-semibold text-navy">Route comparison</h2>
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        <div className="bg-safeGreen/10 border border-safeGreen rounded p-2">
+    <div className="space-y-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-navy/60">Route comparison</h2>
+      <div className="grid grid-cols-2 gap-2.5 text-sm">
+        <div className="bg-safeGreen/10 border border-safeGreen/40 rounded-lg p-3">
           <div className="text-xs text-safeGreen font-semibold">Flood-aware route</div>
-          <div className="text-lg font-bold text-navy">{Math.round(route.eta_seconds)}s</div>
+          <div className="text-xl font-bold text-navy mt-0.5">{Math.round(route.eta_seconds)}s</div>
         </div>
-        <div className="bg-navy/5 border border-navy/20 rounded p-2">
+        <div className="bg-navy/5 border border-navy/15 rounded-lg p-3">
           <div className="text-xs text-navy/60 font-semibold">Naive baseline</div>
-          <div className="text-lg font-bold text-navy">{Math.round(route.baseline_eta_seconds)}s</div>
+          <div className="text-xl font-bold text-navy mt-0.5">{Math.round(route.baseline_eta_seconds)}s</div>
         </div>
       </div>
-      <p className="text-xs text-navy/70">
+      <p className="text-xs text-navy/60 leading-relaxed">
         {deltaSeconds <= 0
           ? `${Math.abs(Math.round(deltaSeconds))}s faster than the baseline.`
           : `${Math.round(deltaSeconds)}s slower than the baseline -- the detour trades time for safety.`}
       </p>
       {route.avoided_flooded_segments.length > 0 && (
-        <div className="text-xs text-riskRed font-medium">
+        <div className="text-xs text-riskRed font-medium bg-riskRed/5 border border-riskRed/20 rounded-lg px-3 py-2">
           Avoided {route.avoided_flooded_segments.length} flooded/at-risk segment(s) the baseline route would
           have used.
         </div>

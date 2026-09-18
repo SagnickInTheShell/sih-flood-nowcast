@@ -8,15 +8,20 @@ import { stateColor } from "../theme";
 
 const ANCHOR = { lat: 12.9716, lng: 77.5946 };
 
-// ASSUMPTION: MapLibre's free "demotiles" style needs no API key and is used
-// as a placeholder basemap for this prototype -- swap for a production-
-// licensed style (e.g. MapTiler, Stadia Maps) before real deployment.
-const BASEMAP_STYLE = "https://demotiles.maplibre.org/style.json";
+// ASSUMPTION: CARTO's free "Positron" basemap style needs no API key and
+// gives a real street-level look (roads, place labels, water) even though
+// the synthetic ward's own road grid is a fictional overlay on top of it --
+// swap for a production-licensed style (e.g. MapTiler, Stadia Maps) before
+// real deployment. Demotiles (MapLibre's own placeholder style) rendered
+// almost nothing at demo zoom levels, which read as a blank/abstract
+// background; Positron actually looks like a map.
+const BASEMAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
 export default function MapView() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const overlayRef = useRef<MapboxOverlay | null>(null);
+  const hasCenteredRef = useRef(false);
 
   const simulateResult = useFloodStore((s) => s.simulateResult);
   const criticalInfra = useFloodStore((s) => s.criticalInfra);
@@ -32,16 +37,27 @@ export default function MapView() {
       style: BASEMAP_STYLE,
       center: [ANCHOR.lng, ANCHOR.lat],
       zoom: 14.5,
+      attributionControl: { compact: true },
     });
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     const overlay = new MapboxOverlay({ layers: [] });
     map.addControl(overlay as unknown as maplibregl.IControl);
     mapRef.current = map;
     overlayRef.current = overlay;
 
-    // Demo affordance: click anywhere to route from that point to the
-    // ward's first critical-infrastructure site (kept simple on purpose).
+    // Demo affordance: click anywhere to route from that point to a
+    // critical-infrastructure site that is ACTUALLY at risk under the
+    // current scenario (zero access redundancy), falling back to the
+    // first known site if nothing is at risk yet (e.g. light rain).
+    // BUGFIX: this used to always target criticalInfra[0] -- fine for the
+    // synthetic ward, where the hospital is deliberately sited to be
+    // vulnerable, but in real mode (many facilities, no deliberate siting)
+    // the first one in the list has no guaranteed relationship to which
+    // facility is actually cut off right now.
     map.on("click", (e) => {
-      const infra = useFloodStore.getState().criticalInfra[0];
+      const state = useFloodStore.getState();
+      const atRiskIds = new Set(state.simulateResult?.at_risk_infra_ids ?? []);
+      const infra = state.criticalInfra.find((i) => atRiskIds.has(i.infra_id)) ?? state.criticalInfra[0];
       if (infra) {
         computeRoute({ lat: e.lngLat.lat, lng: e.lngLat.lng }, { lat: infra.lat, lng: infra.lng });
       }
@@ -53,6 +69,17 @@ export default function MapView() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Real-mode wards (e.g. Bellandur) live nowhere near the synthetic
+  // ward's placeholder anchor -- recentre once real data actually arrives,
+  // instead of hardcoding a second location here.
+  useEffect(() => {
+    if (hasCenteredRef.current || !mapRef.current || criticalInfra.length === 0) return;
+    const avgLat = criticalInfra.reduce((sum, i) => sum + i.lat, 0) / criticalInfra.length;
+    const avgLng = criticalInfra.reduce((sum, i) => sum + i.lng, 0) / criticalInfra.length;
+    mapRef.current.jumpTo({ center: [avgLng, avgLat], zoom: 15 });
+    hasCenteredRef.current = true;
+  }, [criticalInfra]);
 
   useEffect(() => {
     if (!overlayRef.current) return;
@@ -71,8 +98,11 @@ export default function MapView() {
             })),
           },
           getLineColor: (f: any) => [...(stateColor[f.properties.state] ?? stateColor.clear), 255],
-          getLineWidth: (f: any) => (f.properties.state === "flooded" ? 5 : 3),
-          lineWidthMinPixels: 2,
+          getLineWidth: (f: any) => (f.properties.state === "flooded" ? 7 : 5),
+          widthUnits: "pixels",
+          lineWidthMinPixels: 4,
+          capRounded: true,
+          jointRounded: true,
           pickable: true,
         }),
       );
@@ -85,14 +115,17 @@ export default function MapView() {
           data: simulateResult.node_predictions,
           getPosition: (d: any) => [d.lng, d.lat],
           getWeight: (d: any) => Math.max(d.depth_m_mean, 0.001),
-          radiusPixels: 45,
+          radiusPixels: 90,
+          intensity: 1.5,
+          threshold: 0.02,
+          aggregation: "SUM",
           colorRange: [
             [234, 244, 250, 0],
-            [232, 163, 61, 120],
-            [232, 163, 61, 180],
-            [192, 57, 43, 200],
-            [192, 57, 43, 255],
-            [120, 20, 15, 255],
+            [187, 222, 217, 90],
+            [232, 163, 61, 140],
+            [232, 163, 61, 190],
+            [192, 57, 43, 220],
+            [140, 25, 18, 255],
           ],
         }),
       );
@@ -137,11 +170,11 @@ export default function MapView() {
             })),
           },
           pointType: "circle",
-          getFillColor: [11, 37, 69, 255],
-          getLineColor: [255, 255, 255, 255],
-          getLineWidth: 2,
+          getFillColor: [232, 163, 61, 255],
+          getLineColor: [11, 37, 69, 255],
+          getLineWidth: 2.5,
           lineWidthMinPixels: 2,
-          getPointRadius: 9,
+          getPointRadius: 11,
           pointRadiusUnits: "pixels",
           pickable: true,
         }),
@@ -154,17 +187,19 @@ export default function MapView() {
           id: "baseline-route",
           data: [{ path: route.baseline_route_geometry.coordinates }],
           getPath: (d: any) => d.path,
-          getColor: [148, 163, 184, 200],
-          getWidth: 4,
-          widthMinPixels: 3,
+          getColor: [148, 163, 184, 210],
+          getWidth: 5,
+          widthMinPixels: 4,
+          capRounded: true,
         }),
         new PathLayer({
           id: "active-route",
           data: [{ path: route.route_geometry.coordinates }],
           getPath: (d: any) => d.path,
           getColor: [31, 107, 87, 255],
-          getWidth: 5,
-          widthMinPixels: 4,
+          getWidth: 6,
+          widthMinPixels: 5,
+          capRounded: true,
         }),
       );
     }

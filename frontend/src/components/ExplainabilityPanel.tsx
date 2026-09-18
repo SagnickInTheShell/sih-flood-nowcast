@@ -36,9 +36,9 @@ export default function ExplainabilityPanel() {
   if (!simulateResult) return null;
 
   return (
-    <div className="space-y-2">
-      <h2 className="font-semibold text-navy">Why is this node flooding?</h2>
-      <p className="text-xs text-navy/60">
+    <div className="space-y-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-navy/60">Why is this node flooding?</h2>
+      <p className="text-xs text-navy/50 leading-relaxed">
         Simple ablation: each factor is held at the network&apos;s median value in turn, re-run through the
         physics baseline. This is not a black-box importance score.
       </p>
@@ -47,11 +47,11 @@ export default function ExplainabilityPanel() {
         <div style={{ width: "100%", height: 140 }}>
           <ResponsiveContainer>
             <BarChart data={factors.map((f) => ({ ...f, label: FACTOR_LABEL[f.factor] ?? f.factor }))} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" tick={{ fontSize: 10 }} unit="m" />
-              <YAxis type="category" dataKey="label" tick={{ fontSize: 10 }} width={100} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#0B254515" />
+              <XAxis type="number" tick={{ fontSize: 11, fill: "#0B2545" }} unit="m" />
+              <YAxis type="category" dataKey="label" tick={{ fontSize: 11, fill: "#0B2545" }} width={100} />
               <Tooltip formatter={(v: number) => `${v.toFixed(3)} m depth delta`} />
-              <Bar dataKey="depth_delta_m" fill="#13355E" />
+              <Bar dataKey="depth_delta_m" fill="#00A8B5" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
